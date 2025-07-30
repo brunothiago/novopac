@@ -1,9 +1,10 @@
-import dash
-from dash import dcc, html, Output, Input
+import streamlit as st
 import plotly.express as px
 import pandas as pd
 
+# -------------------
 # Dados simulados
+# -------------------
 data = pd.DataFrame({
     'Modalidade': [
         'Abastecimento de Água - Urbano', 'Abastecimento de Água - Urbano',
@@ -30,133 +31,76 @@ data = pd.DataFrame({
 
 modalidade_sums = data.groupby('Modalidade')['Valor'].sum().reset_index()
 
-# Função para cor de contraste
-def cor_contraste(cor_hex):
-    cor_hex = cor_hex.lstrip('#')
-    r, g, b = [int(cor_hex[i:i+2], 16) for i in (0, 2, 4)]
-    brilho = (r*299 + g*587 + b*114) / 1000
-    return '#000000' if brilho > 160 else '#FFFFFF'
+# -------------------
+# Título
+# -------------------
+st.set_page_config(layout="centered")
+st.title("Dashboard de Investimentos por Modalidade")
 
-# App
-app = dash.Dash(__name__)
-app.title = "Dashboard Interativo"
-
-app.layout = html.Div(style={'fontFamily': 'Arial', 'padding': '2rem'}, children=[
-    html.H2("Dashboard de Investimentos por Modalidade", style={"textAlign": "center"}),
-
-    # Dropdown para seleção múltipla
-    html.Div([
-        html.Label("Selecione Modalidades para Somatório:", style={'fontWeight': 'bold'}),
-        dcc.Dropdown(
-            id='dropdown-modalidades',
-            options=[{'label': m, 'value': m} for m in sorted(data['Modalidade'].unique())],
-            multi=True,
-            placeholder="Selecione uma ou mais modalidades"
-        )
-    ], style={'maxWidth': '800px', 'margin': 'auto'}),
-
-    html.Div(id='resumo-multiselecoes', style={
-        'marginTop': '1rem',
-        'padding': '1rem',
-        'backgroundColor': '#f2f2f2',
-        'borderRadius': '10px',
-        'maxWidth': '800px',
-        'margin': 'auto',
-        'textAlign': 'center',
-        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
-    }),
-
-    # Gráfico de pizza
-    dcc.Graph(
-        id='grafico-modalidade',
-        figure=px.pie(
-            modalidade_sums,
-            names='Modalidade',
-            values='Valor',
-            hole=0.4,
-            title="Investimentos por Modalidade"
-        ).update_traces(
-            textinfo='label+percent',
-            textposition='outside',
-            textfont=dict(size=14),
-            marker=dict(line=dict(color='black', width=0.5)),
-            pull=[0.03]*len(modalidade_sums)
-        ).update_layout(
-            showlegend=False,
-            title_x=0.5,
-            margin=dict(t=50, b=50, l=0, r=0)
-        )
-    ),
-
-    html.Div(id='info-modalidade', style={
-        'marginTop': '2rem',
-        'padding': '1rem',
-        'border': '1px solid #ccc',
-        'borderRadius': '10px',
-        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-        'maxWidth': '800px',
-        'margin': 'auto',
-        'textAlign': 'center'
-    }, children="Clique em uma modalidade para ver os detalhes.")
-])
-
-# Callback do somatório via dropdown
-@app.callback(
-    Output('resumo-multiselecoes', 'children'),
-    Input('dropdown-modalidades', 'value')
+# -------------------
+# Multiseleção
+# -------------------
+modalidades_disponiveis = sorted(data['Modalidade'].unique())
+selecionadas = st.multiselect(
+    "Selecione Modalidades para Somatório:",
+    modalidades_disponiveis
 )
-def resumo_modalidades_selecionadas(mods):
-    if not mods:
-        return "Selecione uma ou mais modalidades para ver o somatório geral."
 
-    df_filtro = data[data['Modalidade'].isin(mods)]
-    qtd_mun = df_filtro['Qtd_Mun'].sum()
-    qtd_prop = df_filtro['Qtd_Prop'].sum()
-    valor_total = df_filtro['Valor'].sum()
-
-    return html.Div([
-        html.H3("Resumo das Modalidades Selecionadas"),
-        html.P(f"Modalidades: {', '.join(mods)}"),
-        html.P(f"Total de Municípios: {qtd_mun}"),
-        html.P(f"Total de Propostas: {qtd_prop}"),
-        html.P(f"Valor Total: R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-    ])
-
-# Callback do clique no gráfico
-@app.callback(
-    Output('info-modalidade', 'children'),
-    Input('grafico-modalidade', 'clickData')
+# -------------------
+# Gráfico de Pizza
+# -------------------
+fig = px.pie(
+    modalidade_sums,
+    names='Modalidade',
+    values='Valor',
+    hole=0.4,
+    title='Investimentos por Modalidade'
 )
-def detalhar_modalidade(clickData):
-    if clickData:
-        modalidade = clickData['points'][0]['label']
-        cor_fatia = clickData['points'][0].get('color', '#CCCCCC')
-        filtro = data[data['Modalidade'] == modalidade]
-        cor_texto = cor_contraste(cor_fatia)
 
-        blocos = []
-        for _, row in filtro.iterrows():
-            blocos.append(html.Div([
-                html.H4(f"Subcategoria: {row['Subcategoria']}"),
-                html.P(f"Qtd Municípios: {row['Qtd_Mun']}"),
-                html.P(f"Qtd Propostas: {row['Qtd_Prop']}"),
-                html.P(f"Valor Total: R$ {row['Valor']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-            ], style={
-                'backgroundColor': cor_fatia,
-                'color': cor_texto,
-                'borderRadius': '8px',
-                'padding': '1rem',
-                'marginBottom': '1.5rem',
-                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
-            }))
+fig.update_traces(
+    textinfo='label+percent',
+    textposition='outside',
+    textfont=dict(size=13),
+    marker=dict(line=dict(color='black', width=0.5)),
+    pull=[0.03]*len(modalidade_sums)
+)
 
-        return html.Div([
-            html.H3(f"Detalhes da Modalidade: {modalidade}", style={'marginBottom': '1.5rem'}),
-            *blocos
-        ])
-    else:
-        return "Clique em uma modalidade para ver os detalhes."
+fig.update_layout(showlegend=False, title_x=0.5)
+st.plotly_chart(fig, use_container_width=True)
 
-# Executa app
-if __name__ == '__main__':
-    app.run(debug=True)
+# -------------------
+# Resumo da Seleção
+# -------------------
+if selecionadas:
+    df_sel = data[data['Modalidade'].isin(selecionadas)]
+    total_mun = df_sel['Qtd_Mun'].sum()
+    total_prop = df_sel['Qtd_Prop'].sum()
+    total_valor = df_sel['Valor'].sum()
+
+    st.subheader("🔎 Resumo das Modalidades Selecionadas")
+    st.markdown(f"""
+    - **Modalidades Selecionadas**: {", ".join(selecionadas)}  
+    - **Total de Municípios**: {total_mun}  
+    - **Total de Propostas**: {total_prop}  
+    - **Valor Total**: R$ {total_valor:,.2f}
+    """.replace(",", "X").replace(".", ",").replace("X", "."))
+
+# -------------------
+# Modalidade Detalhada
+# -------------------
+modalidade_detalhada = st.selectbox(
+    "Ou selecione uma modalidade para ver detalhes:",
+    modalidades_disponiveis
+)
+
+df_detalhe = data[data['Modalidade'] == modalidade_detalhada]
+
+st.subheader(f"📌 Detalhes de: {modalidade_detalhada}")
+for _, row in df_detalhe.iterrows():
+    st.markdown(f"""
+    **Subcategoria:** {row['Subcategoria']}  
+    • Municípios: {row['Qtd_Mun']}  
+    • Propostas: {row['Qtd_Prop']}  
+    • Valor: R$ {row['Valor']:,.2f}
+    """.replace(",", "X").replace(".", ",").replace("X", "."))
+    st.markdown("---")
